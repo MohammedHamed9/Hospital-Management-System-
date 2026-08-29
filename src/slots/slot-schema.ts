@@ -19,7 +19,7 @@ export class Slot {
   endTime: Date; // مثال: 2026-08-25T09:30:00.000Z
 
   @Prop({ type: Number, required: true })
-  numOfPatient: number;
+  capacity: number;
 
   @Prop({ type: String, enum: SlotStatus, default: SlotStatus.AVAILABLE })
   status: SlotStatus;

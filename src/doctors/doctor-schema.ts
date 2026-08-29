@@ -13,7 +13,7 @@ export class Doctor {
   experience: number;
 
   @Prop({ required: true })
-  consultation_fee: number;
+  consultationFee: number;
 
   @Prop()
   bio: string;

@@ -7,6 +7,7 @@ import { ServicesBookingModule } from './services-booking/services-booking.modul
 import { SlotsModule } from './slots/slots.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PrescriptionModule } from './prescriptions/prescriptions.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PrescriptionModule } from './prescriptions/prescriptions.module';
     SlotsModule,
     AppointmentsModule,
     PrescriptionModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],

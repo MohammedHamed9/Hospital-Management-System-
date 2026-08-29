@@ -1,3 +1,4 @@
+// src/services/schemas/service.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
