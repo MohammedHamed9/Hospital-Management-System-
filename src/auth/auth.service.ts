@@ -16,7 +16,6 @@ export class AuthService {
   ): Promise<{ user: User; accessToken: string }> {
     let { name, email, password, address, dateOfBirth, phone, gender } =
       signUpCredentials;
-    console.log(signUpCredentials);
     password = await bcrypt.hash(password, 10);
     const user = await this.usersService.create({
       name,
@@ -27,7 +26,7 @@ export class AuthService {
       phone,
       gender,
     });
-    const payload = { name: user.name };
+    const payload = { name: user.name, role: user.role };
     const token = await this.jwtService.signAsync(payload);
     return { user: user, accessToken: token };
   }
@@ -44,7 +43,7 @@ export class AuthService {
     if (!isPasswordMatch) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const payload = { name: user.name };
+    const payload = { email: user.email };
     const token = await this.jwtService.signAsync(payload);
     return { user: user, accessToken: token };
   }
