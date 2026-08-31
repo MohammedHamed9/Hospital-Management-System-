@@ -1,5 +1,8 @@
+import { CreateUserDto } from './dtos/createUserDto';
 import { SignUpCredentials } from './../auth/dtos/signUpCredentials';
 import { InjectModel } from '@nestjs/mongoose';
+import * as bcrypt from 'bcrypt';
+
 import {
   ConflictException,
   Injectable,
@@ -18,6 +21,17 @@ export class UsersService {
   async create(signUpCredentials: SignUpCredentials): Promise<User> {
     try {
       return await this.userModel.create(signUpCredentials);
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new ConflictException('the email address ia already exists!');
+      }
+      throw new InternalServerErrorException();
+    }
+  }
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    try {
+      createUserDto.password = await bcrypt.hash(createUserDto.password, 10);
+      return await this.userModel.create(createUserDto);
     } catch (error) {
       if (error.code === 11000) {
         throw new ConflictException('the email address ia already exists!');
