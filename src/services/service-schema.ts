@@ -12,7 +12,7 @@ export enum ServiceCategory {
 
 @Schema({ timestamps: true })
 export class Service {
-  @Prop({ required: true, trim: true })
+  @Prop({ required: true, trim: true, unique: true })
   name: string;
 
   @Prop({ required: true, min: 0 })

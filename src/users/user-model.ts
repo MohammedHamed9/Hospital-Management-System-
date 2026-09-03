@@ -14,9 +14,4 @@ export class UserModel {
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
   ) {}
-
-  async create(signUpCredentials: SignUpCredentials): Promise<User> {
-    const user = await this.userModel.create(signUpCredentials);
-    return user;
-  }
 }

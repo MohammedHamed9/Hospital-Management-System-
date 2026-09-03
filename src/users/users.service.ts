@@ -9,8 +9,9 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { User } from './user-schema';
+import { User, UserRole } from './user-schema';
 import { Model } from 'mongoose';
+import { GetUsersDto } from './dtos/getUsersDro';
 
 @Injectable()
 export class UsersService {
@@ -42,5 +43,33 @@ export class UsersService {
   async findOneByEmail(email: string): Promise<User | null> {
     const user = await this.userModel.findOne({ email }).select('+password');
     return user;
+  }
+  async findSomeUsers(getUsersDto: GetUsersDto): Promise<User[]> {
+    const Admins = await this.userModel.find({
+      role: { $in: getUsersDto.roles },
+      isActive: true,
+    });
+    return Admins;
+  }
+  async findAllUsers(): Promise<User[]> {
+    return await this.userModel
+      .find({ isActive: true })
+      .select('-password -passwordChangedAt');
+  }
+  async findById(id: string): Promise<User> {
+    const user = await this.userModel
+      .findById(id)
+      .select('-password -passwordChangedAt');
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return user;
+  }
+  async deleteById(id: string): Promise<void> {
+    const result = await this.userModel.findByIdAndUpdate(
+      id,
+      { isActive: false },
+      { new: true },
+    );
   }
 }
