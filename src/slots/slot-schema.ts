@@ -9,14 +9,17 @@ export enum SlotStatus {
 }
 @Schema({ timestamps: true })
 export class Slot {
-  @Prop({ type: Types.ObjectId, ref: 'Doctor' })
+  @Prop({ type: Types.ObjectId, ref: 'User' })
   doctorId: Types.ObjectId;
 
-  @Prop({ type: Date, required: true })
+  @Prop({ type: String, required: true })
   startTime: Date; // مثال: 2026-08-25T09:00:00.000Z
 
-  @Prop({ type: Date, required: true })
+  @Prop({ type: String, required: true })
   endTime: Date; // مثال: 2026-08-25T09:30:00.000Z
+
+  @Prop({ type: Date, required: true })
+  date: Date; // مثال: 2026-08-25T09:30:00.000Z
 
   @Prop({ type: Number, required: true })
   capacity: number;

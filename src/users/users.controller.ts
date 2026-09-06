@@ -9,12 +9,14 @@ import {
   Get,
   Param,
   Delete,
+  Patch,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { User, UserRole } from './user-schema';
 import { Roles } from 'src/auth/decorators/role.decorator';
 import { RolesGuard } from 'src/auth/guards/role.guard';
 import { GetUsersDto } from './dtos/getUsersDro';
+import { updateUserDto } from './dtos/updateUserDto';
 
 @Controller('users')
 export class UsersController {
@@ -43,6 +45,15 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   async getUserById(@Param('id') id: string): Promise<User> {
     return await this.usersService.findById(id);
+  }
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Patch('admin/updateUserById/:id')
+  @Roles(UserRole.ADMIN)
+  async updateUserById(
+    @Param('id') id: string,
+    @Body() updateDoctorDto: updateUserDto,
+  ): Promise<User> {
+    return await this.usersService.updateUser(id, updateDoctorDto);
   }
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Delete('admin/deleteUser/:id')

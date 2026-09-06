@@ -4,8 +4,9 @@ import { Types, HydratedDocument } from 'mongoose';
 export type DoctorDocument = HydratedDocument<Doctor>;
 @Schema({ timestamps: true })
 export class Doctor {
-  @Prop({ type: Types.ObjectId, ref: 'User', unique: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', unique: true, required: true })
   userId: Types.ObjectId;
+  
   @Prop({ required: true })
   specialization: string;
 
