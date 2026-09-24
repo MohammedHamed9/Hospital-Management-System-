@@ -15,7 +15,6 @@ import { UserRole } from 'src/users/user-schema';
 import { Slot } from './slot-schema';
 import { CreateSlotDto } from './dtos/createSlotDto';
 import { RolesGuard } from 'src/auth/guards/role.guard';
-import { UpdateSlotDto } from './dtos/updateSlotDto';
 
 @Controller('slots')
 export class SlotsController {
@@ -29,17 +28,18 @@ export class SlotsController {
   ): Promise<Slot> {
     return this.slotsService.addSlot(createSlotDto, req.user);
   }
-  /*
+
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Patch('/update-slot/:id')
-  @Roles(UserRole.DOCTOR)
+  @Roles(UserRole.DOCTOR, UserRole.ADMIN)
   async updateSlot(
-    @Body() updateSlotDto: UpdateSlotDto,
+    @Body() createSlotDto: CreateSlotDto,
     @Request() req,
     @Param('id') slotId: string,
   ): Promise<Slot> {
-    return this.slotsService.updateSlot(updateSlotDto, req.user, slotId);
-  }*/
+    return this.slotsService.updateSlot(createSlotDto, req.user, slotId);
+  }
+
   @Get('/get-slot/:id')
   async getSlot(@Param('id') slotId: string): Promise<Slot> {
     return this.slotsService.getSlot(slotId);

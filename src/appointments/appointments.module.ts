@@ -16,9 +16,10 @@ import { ServicesModule } from 'src/services/services.module';
     DoctorsModule,
     UsersModule,
     SlotsModule,
-    ServicesModule
+    ServicesModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
+  exports: [AppointmentsService],
 })
 export class AppointmentsModule {}

@@ -6,6 +6,7 @@ export type slotDocument = HydratedDocument<Slot>;
 export enum SlotStatus {
   AVAILABLE = 'AVAILABLE',
   CANCELLED = 'CANCELLED',
+  FULLOFF = 'FULLOFF',
 }
 @Schema({ timestamps: true })
 export class Slot {
@@ -23,6 +24,9 @@ export class Slot {
 
   @Prop({ type: Number, required: true })
   capacity: number;
+
+  @Prop({ type: Number, required: true, default: 0 })
+  waitingList: number;
 
   @Prop({ type: String, enum: SlotStatus, default: SlotStatus.AVAILABLE })
   status: SlotStatus;

@@ -6,7 +6,6 @@ export type AppointmentDocument = HydratedDocument<Appointment>;
 
 export enum AppointmentStatus {
   PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
   CANCELLED = 'CANCELLED',
   COMPLETED = 'COMPLETED',
 }
@@ -14,12 +13,13 @@ export enum AppointmentStatus {
 export class Appointment {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   patientId: Types.ObjectId;
+  
   @Prop({ type: Types.ObjectId, ref: 'Doctor', required: true })
   doctorId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Slot', required: true })
   slotId: Types.ObjectId;
-  
+
   @Prop({
     type: String,
     enum: AppointmentStatus,

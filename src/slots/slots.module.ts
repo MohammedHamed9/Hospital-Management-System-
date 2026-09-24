@@ -12,5 +12,6 @@ import { DoctorsModule } from 'src/doctors/doctors.module';
   ],
   controllers: [SlotsController],
   providers: [SlotsService],
+  exports: [SlotsService],
 })
 export class SlotsModule {}

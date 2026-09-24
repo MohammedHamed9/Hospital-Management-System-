@@ -1,20 +1,23 @@
-import { PrescriptionSchema } from './prescription-schema';
+import { SlotsModule } from './../slots/slots.module';
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Prescription, PrescriptionSchema } from './prescription-schema';
 import { PrescriptionController } from './prescriptions.controller';
 import { PrescriptionService } from './prescriptions.service';
-import { MongooseModule } from '@nestjs/mongoose';
-import { UsersModule } from 'src/users/users.module';
 import { AppointmentsModule } from 'src/appointments/appointments.module';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: 'Prescription', schema: PrescriptionSchema },
+      { name: Prescription.name, schema: PrescriptionSchema },
     ]),
-    UsersModule,
     AppointmentsModule,
+    UsersModule,
+    SlotsModule,
   ],
   controllers: [PrescriptionController],
   providers: [PrescriptionService],
+  exports: [PrescriptionService],
 })
 export class PrescriptionModule {}
