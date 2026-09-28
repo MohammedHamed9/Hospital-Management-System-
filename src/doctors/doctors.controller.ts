@@ -66,12 +66,15 @@ export class DoctorsController {
   async getDoctorById(@Param('id') id: string): Promise<Doctor> {
     return this.doctorService.getDoctorById(id);
   }
-
+  //مفروض تبقي في ال مستخدم و لما يمسح هناك تسمح ده معاها 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Delete('deleteMe')
   @Roles(UserRole.DOCTOR)
   async deleteMyAccount(@Request() req): Promise<void> {
     await this.doctorService.deleteMyAccount(req.user);
   }
+  /*
+  GET /doctors/search name  or specialization
   
+  */
 }

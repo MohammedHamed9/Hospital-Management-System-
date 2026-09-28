@@ -61,4 +61,10 @@ export class UsersController {
   async deleteUser(@Param('id') id: string): Promise<void> {
     await this.usersService.deleteById(id);
   }
+  /*
+  get profile
+  update profile
+  change password
+  deactivate account
+  */
 }

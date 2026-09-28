@@ -31,7 +31,7 @@ export class ServicesController {
   ): Promise<Service> {
     return await this.serviceService.createService(createServiceDto);
   }
-
+  //نضم الاتنين مع بعض السرش مع ال جت
   @UseGuards(AuthGuard('jwt'))
   @Get('admin/getAllServices')
   async getAllServices(
@@ -49,7 +49,13 @@ export class ServicesController {
   }> {
     return await this.serviceService.getAllServices(page, limit);
   }
-
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/searchServices')
+  async searchServices(@Query('search') search: string): Promise<Service[]> {
+    {
+      return await this.serviceService.searchServices(search);
+    }
+  }
   @UseGuards(AuthGuard('jwt'))
   @Get('admin/getServiceById/:id')
   async getServiceById(@Param('id') id: string): Promise<Service> {
@@ -72,13 +78,6 @@ export class ServicesController {
   async deleteService(@Param('id') id: string): Promise<void> {
     {
       return await this.serviceService.deleteService(id);
-    }
-  }
-  @UseGuards(AuthGuard('jwt'))
-  @Get('admin/searchServices')
-  async searchServices(@Query('search') search: string): Promise<Service[]> {
-    {
-      return await this.serviceService.searchServices(search);
     }
   }
 }
