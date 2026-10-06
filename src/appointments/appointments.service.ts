@@ -6,6 +6,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import {
 } from './appointment-schema';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { UserRole } from 'src/users/user-schema';
 
 @Injectable()
 export class AppointmentsService {
@@ -23,6 +26,7 @@ export class AppointmentsService {
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<Appointment>,
     private readonly slotsService: SlotsService,
+    @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly doctorsService: DoctorsService,
     @InjectConnection() private readonly connection: Connection,
@@ -33,7 +37,6 @@ export class AppointmentsService {
     slotId: string,
     user: any,
   ): Promise<Appointment | undefined> {
-    //if Admin or doctor check on pateint id
     let finalPatientId = user._id.toString();
     if (user.role == 'ADMIN' || user.role == 'DOCTOR') {
       if (!patientId) throw new BadRequestException('patientId is required');
@@ -45,7 +48,6 @@ export class AppointmentsService {
     const session = await this.connection.startSession();
     session.startTransaction();
     try {
-      //no slotId
       if (!slotId) throw new BadRequestException('slotId is required');
       const slot = await this.slotsService.getSlot(slotId, session);
 
@@ -59,7 +61,7 @@ export class AppointmentsService {
       if (existingAppointment) {
         throw new ConflictException('You have already booked this slot');
       }
-      //create app
+
       const [appointment] = await this.appointmentModel.create(
         [
           {
@@ -86,6 +88,7 @@ export class AppointmentsService {
       await session.endSession();
     }
   }
+
   async cancelAppointmet(
     appointmentId: string,
     user: any,
@@ -93,7 +96,6 @@ export class AppointmentsService {
     const session = await this.connection.startSession();
     session.startTransaction();
     try {
-      //if appointmetId is exist
       const existingAppointment = await this.appointmentModel
         .findOne({
           _id: appointmentId,
@@ -112,7 +114,6 @@ export class AppointmentsService {
           );
       }
 
-      //update the appointment status to canceled
       existingAppointment.status = AppointmentStatus.CANCELLED;
       await existingAppointment.save({ session });
 
@@ -132,7 +133,7 @@ export class AppointmentsService {
       await session.endSession();
     }
   }
-  // في الـ Service Method Signature
+
   async getMyAppointments(
     user: any,
   ): Promise<{ appointments: Appointment[]; total: number }> {
@@ -160,6 +161,7 @@ export class AppointmentsService {
 
     return { appointments, total };
   }
+
   async getAppointmentById(
     user: any,
     appointmentId: string,
@@ -176,6 +178,7 @@ export class AppointmentsService {
     }
     return appointment;
   }
+
   async getAllAppointments(): Promise<Appointment[]> {
     const appointments = await this.appointmentModel
       .find({})
@@ -186,6 +189,78 @@ export class AppointmentsService {
 
     return appointments;
   }
+
+  async getSlotAppointments(
+    slotId: string,
+    user?: any,
+  ): Promise<Appointment[]> {
+    if (!Types.ObjectId.isValid(slotId)) {
+      throw new BadRequestException('Invalid slotId format');
+    }
+
+    const slot = await this.slotsService.getSlot(slotId);
+    if (!slot) {
+      throw new NotFoundException('Slot not found!');
+    }
+
+    const appointments = await this.appointmentModel
+      .find({ slotId: new Types.ObjectId(slotId) })
+      .sort({ createdAt: -1 })
+      .populate('patientId', 'name email phone gender')
+      .populate('doctorId', 'name email specialization')
+      .populate('slotId', 'startTime endTime date capacity waitingList status')
+      .lean<Appointment[]>()
+      .exec();
+
+    return appointments;
+  }
+
+  async getCompletedAppointmentsByPatientId(
+    patientId: string,
+  ): Promise<any[]> {
+    return await this.appointmentModel
+      .find({
+        patientId: new Types.ObjectId(patientId),
+        status: AppointmentStatus.COMPLETED,
+      })
+      .sort({ createdAt: -1 })
+      .populate('doctorId', 'name email phone specialization')
+      .populate('slotId', 'date startTime endTime capacity waitingList status')
+      .lean()
+      .exec();
+  }
+
+  async getAppointmentStats(): Promise<{
+    todayAppointments: number;
+    pendingAppointments: number;
+    completedAppointments: number;
+  }> {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const [todayAppointments, pendingAppointments, completedAppointments] =
+      await Promise.all([
+        this.appointmentModel.countDocuments({
+          createdAt: { $gte: startOfDay, $lte: endOfDay },
+        }),
+        this.appointmentModel.countDocuments({
+          status: AppointmentStatus.PENDING,
+        }),
+        this.appointmentModel.countDocuments({
+          status: AppointmentStatus.COMPLETED,
+        }),
+      ]);
+
+    return {
+      todayAppointments,
+      pendingAppointments,
+      completedAppointments,
+    };
+  }
+
   async updateAppointment(
     updateAppointmentDto: UpdateAppointmentDto,
     appointmentId: string,
@@ -216,6 +291,7 @@ export class AppointmentsService {
     }
     return appointment;
   }
+
   async markAsCompleted(
     appointmentId: string,
     session?: ClientSession,
@@ -230,5 +306,39 @@ export class AppointmentsService {
       throw new NotFoundException('Appointment not found!');
     }
     return updatedAppointment;
+  }
+
+  async cancelAppointmentsByUserId(
+    doctorObjectId: any,
+    role: UserRole,
+    session?: ClientSession,
+  ): Promise<void> {
+    if (role === UserRole.DOCTOR) {
+      await this.appointmentModel.updateMany(
+        { doctorId: doctorObjectId, status: { $ne: AppointmentStatus.CANCELLED } },
+        { status: AppointmentStatus.CANCELLED },
+        { session },
+      );
+    } else {
+      await this.appointmentModel.updateMany(
+        {
+          patientId: doctorObjectId,
+          status: { $ne: AppointmentStatus.CANCELLED },
+        },
+        { status: AppointmentStatus.CANCELLED },
+        { session },
+      );
+    }
+  }
+
+  async cancelAppointmentsBySlotId(
+    slotId: string,
+    session?: ClientSession,
+  ): Promise<void> {
+    await this.appointmentModel.updateMany(
+      { slotId, status: { $ne: AppointmentStatus.CANCELLED } },
+      { status: AppointmentStatus.CANCELLED },
+      { session },
+    );
   }
 }

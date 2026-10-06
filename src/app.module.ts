@@ -10,6 +10,7 @@ import { PrescriptionModule } from './prescriptions/prescriptions.module';
 import { AuthModule } from './auth/auth.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ConfigModule } from '@nestjs/config';
+import { MailModule } from './mail/mail.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -25,6 +26,7 @@ import { ConfigModule } from '@nestjs/config';
     PrescriptionModule,
     AuthModule,
     CloudinaryModule,
+    MailModule,
   ],
   controllers: [],
   providers: [],

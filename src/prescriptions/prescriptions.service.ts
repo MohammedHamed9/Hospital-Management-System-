@@ -4,6 +4,8 @@ import { AppointmentsService } from './../appointments/appointments.service';
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -27,6 +29,7 @@ export class PrescriptionService {
     @InjectModel(Prescription.name)
     private readonly prescriptionModel: Model<PrescriptionDocument>,
     private readonly appointmentsService: AppointmentsService,
+    @Inject(forwardRef(() => UsersService))
     private readonly UsersService: UsersService,
     private readonly slotsService: SlotsService,
     @InjectConnection() private readonly connection: Connection,
@@ -188,6 +191,20 @@ export class PrescriptionService {
     }
 
     return prescription;
+  }
+
+  async getPatientPrescriptionsForMedicalRecord(
+    patientId: string,
+  ): Promise<any[]> {
+    return await this.prescriptionModel
+      .find({
+        patientId: this.toObjectId(patientId),
+      })
+      .sort({ createdAt: -1 })
+      .populate('doctorId', 'name email phone address')
+      .populate('appointmentId')
+      .lean()
+      .exec();
   }
 
   async getPrescriptions(

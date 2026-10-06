@@ -1,5 +1,5 @@
 import { SlotsModule } from './../slots/slots.module';
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Prescription, PrescriptionSchema } from './prescription-schema';
 import { PrescriptionController } from './prescriptions.controller';
@@ -13,7 +13,7 @@ import { UsersModule } from 'src/users/users.module';
       { name: Prescription.name, schema: PrescriptionSchema },
     ]),
     AppointmentsModule,
-    UsersModule,
+    forwardRef(() => UsersModule),
     SlotsModule,
   ],
   controllers: [PrescriptionController],

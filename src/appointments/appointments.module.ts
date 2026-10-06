@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { AppointmentsController } from './appointments.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -14,9 +14,9 @@ import { ServicesModule } from 'src/services/services.module';
       { name: 'Appointment', schema: AppointmentSchema },
     ]),
     DoctorsModule,
-    UsersModule,
     SlotsModule,
     ServicesModule,
+    forwardRef(() => UsersModule),
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

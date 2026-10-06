@@ -1,6 +1,8 @@
 import { CloudinaryService } from './../cloudinary/cloudinary.service';
 import {
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -11,15 +13,17 @@ import { Model } from 'mongoose';
 import { UsersService } from 'src/users/users.service';
 import { CreateDoctorDto } from './dtos/createDoctorDto';
 import { UpdateDoctorDto } from './dtos/updateDoctorDto';
+import { ClientSession } from 'mongoose';
 
 @Injectable()
 export class DoctorsService {
   constructor(
     @InjectModel('Doctor') private readonly doctorModel: Model<Doctor>,
+    @Inject(forwardRef(() => UsersService))
     private readonly userService: UsersService,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
-  async updateAccount(
+  async createAccount(
     id: string,
     createDoctorDto: CreateDoctorDto,
     image: Express.Multer.File,
@@ -111,8 +115,13 @@ export class DoctorsService {
     );
     return populatedDoctor;
   }
-  async deleteMyAccount(user): Promise<void> {
-    await this.userService.deleteById(user.id);
-    await this.doctorModel.findByIdAndDelete({ userId: user.id });
+  async deleteMyAccount(
+    doctorObjectId: any,
+    session?: ClientSession,
+  ): Promise<void> {
+    await this.doctorModel.findOneAndDelete(
+      { userId: doctorObjectId },
+      { session },
+    );
   }
 }

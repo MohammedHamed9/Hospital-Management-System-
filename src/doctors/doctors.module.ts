@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -10,7 +10,7 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: 'Doctor', schema: DoctorSchema }]),
-    UsersModule,
+    forwardRef(() => UsersModule),
     AuthModule,
     CloudinaryModule,
   ],

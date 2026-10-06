@@ -26,15 +26,19 @@ export class DoctorsController {
   constructor(private readonly doctorService: DoctorsService) {}
 
   @UseGuards(AuthGuard(), RolesGuard)
-  @Post('update-account/:id')
+  @Post('create-account')
   @UseInterceptors(FileInterceptor('image'))
   @Roles(UserRole.DOCTOR)
-  async updateAccount(
-    @Param('id') id: string,
+  async createAccount(
+    @Request() req,
     @Body() createDoctorDto: CreateDoctorDto,
     @UploadedFile() image: Express.Multer.File,
   ): Promise<Doctor> {
-    return await this.doctorService.updateAccount(id, createDoctorDto, image);
+    return await this.doctorService.createAccount(
+      req.user._id,
+      createDoctorDto,
+      image,
+    );
   }
   @UseGuards(AuthGuard(), RolesGuard)
   @Patch('update-data/:id')
@@ -65,13 +69,6 @@ export class DoctorsController {
   @Roles(UserRole.ADMIN)
   async getDoctorById(@Param('id') id: string): Promise<Doctor> {
     return this.doctorService.getDoctorById(id);
-  }
-  //مفروض تبقي في ال مستخدم و لما يمسح هناك تسمح ده معاها 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Delete('deleteMe')
-  @Roles(UserRole.DOCTOR)
-  async deleteMyAccount(@Request() req): Promise<void> {
-    await this.doctorService.deleteMyAccount(req.user);
   }
   /*
   GET /doctors/search name  or specialization

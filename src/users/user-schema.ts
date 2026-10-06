@@ -1,15 +1,22 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import {
+  CallbackWithoutResultAndOptionalError,
+  HydratedDocument,
+} from 'mongoose';
+
 export enum UserRole {
   PATIENT = 'PATIENT',
   DOCTOR = 'DOCTOR',
   ADMIN = 'ADMIN',
 }
+
 export enum Gender {
   MALE = 'MALE',
   FEMALE = 'FEMALE',
 }
+
 export type UserDocument = HydratedDocument<User>;
+
 @Schema({
   timestamps: true,
 })
@@ -30,7 +37,19 @@ export class User {
   password: string;
 
   @Prop({ type: Date, select: false })
-  passwordChangedAt: Date;
+  passwordChangedAt?: Date;
+
+  @Prop({ type: String, select: false })
+  passwordResetToken?: string;
+
+  @Prop({ type: Date, select: false })
+  passwordResetExpires?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  isEmailVerified: boolean;
+
+  @Prop({ type: Date, default: null })
+  emailVerifiedAt?: Date;
 
   @Prop({ type: String, trim: true })
   address: string;
@@ -47,7 +66,36 @@ export class User {
   @Prop({ type: String, required: true, enum: Gender })
   gender: Gender;
 
-  @Prop({ type: Boolean, default: true })
+  @Prop({ type: Boolean, default: true, index: true })
   isActive: boolean;
+
+  @Prop({ type: Date, default: null })
+  deactivatedAt?: Date;
 }
+
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Global Pre-Find Middleware for System-Wide Active User Isolation
+UserSchema.pre(
+  /^find/,
+  function (this: any, next: CallbackWithoutResultAndOptionalError) {
+    const query = this.getQuery();
+    if (query.includeInactive !== true) {
+      this.where({ isActive: true });
+    } else {
+      delete query.includeInactive;
+    }
+  },
+);
+
+UserSchema.pre(
+  'countDocuments',
+  function (this: any, next: CallbackWithoutResultAndOptionalError) {
+    const query = this.getQuery();
+    if (query.includeInactive !== true) {
+      this.where({ isActive: true });
+    } else {
+      delete query.includeInactive;
+    }
+  },
+);

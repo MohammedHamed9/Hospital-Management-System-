@@ -2,19 +2,26 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Slot, SlotStatus } from './slot-schema';
-import { ClientSession, Model, Types } from 'mongoose';
+import { ClientSession, Model, Types, Connection } from 'mongoose';
 import { CreateSlotDto } from './dtos/createSlotDto';
+import { AppointmentsService } from 'src/appointments/appointments.service';
+import { UserRole } from 'src/users/user-schema';
 
 @Injectable()
 export class SlotsService {
   constructor(
     @InjectModel('Slot')
     private readonly slotModel: Model<Slot>,
+    @Inject(forwardRef(() => AppointmentsService))
+    private readonly appointmentsService: AppointmentsService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
   private constructDateTime(dateStr: string, timeStr: string): Date {
     const parsedDate = new Date(`${dateStr}T${timeStr}:00.000Z`);
@@ -133,24 +140,47 @@ export class SlotsService {
     return slots;
   }
   async cancelSlot(slotId: string, user: any): Promise<Slot> {
-    const slot = await this.slotModel.findOne({
-      _id: slotId,
-      status: SlotStatus.AVAILABLE,
-    });
+    const session = await this.connection.startSession();
 
-    if (!slot) {
-      throw new NotFoundException('Slot not found');
-    }
-    if (
-      slot.doctorId.toString() !== user._id.toString() &&
-      user.role == 'DOCTOR'
-    ) {
-      throw new ForbiddenException(
-        'You are not authorized to cancel this slot',
+    try {
+      session.startTransaction();
+
+      const slot = await this.slotModel.findById(slotId);
+      if (!slot) {
+        throw new NotFoundException('Slot not found');
+      }
+      if (
+        slot.doctorId.toString() !== user._id.toString() &&
+        user.role == UserRole.DOCTOR
+      ) {
+        throw new ForbiddenException(
+          'You are not authorized to cancel this slot',
+        );
+      }
+
+      const updatedSlot = await this.slotModel.findOneAndUpdate(
+        { _id: slotId, status: SlotStatus.AVAILABLE },
+        { status: SlotStatus.CANCELLED },
+        { new: true, session },
       );
+      if (!updatedSlot) {
+        throw new BadRequestException(
+          'Slot cannot be cancelled because it is not in AVAILABLE status',
+        );
+      }
+      await this.appointmentsService.cancelAppointmentsBySlotId(
+        slotId,
+        session,
+      );
+      await session.commitTransaction();
+      return updatedSlot;
+    } catch (error) {
+      console.log(error);
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
     }
-    slot.status = SlotStatus.CANCELLED;
-    return await slot.save();
   }
   async incrementWaitingList(slotId: string, session?: ClientSession) {
     const updatedSlot = await this.slotModel.findOneAndUpdate(
@@ -189,7 +219,6 @@ export class SlotsService {
     return updatedSlot;
   }
   async decrementWaitingList(slotId: string, session?: ClientSession) {
-
     const updatedSlot = await this.slotModel.findOneAndUpdate(
       {
         _id: slotId,
@@ -223,5 +252,15 @@ export class SlotsService {
     }
 
     return updatedSlot;
+  }
+  async cancelSlotsByDoctorId(
+    doctorObjectId: any,
+    session?: ClientSession,
+  ): Promise<void> {
+    await this.slotModel.updateMany(
+      { doctorId: doctorObjectId, status: { $ne: SlotStatus.CANCELLED } },
+      { $set: { status: SlotStatus.CANCELLED } },
+      { session },
+    );
   }
 }

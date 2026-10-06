@@ -27,6 +27,7 @@ export class ServicesService {
     const service = await this.serviceModel.create(createServiceDto);
     return service;
   }
+
   async getAllServices(
     page: string,
     limit: string,
@@ -65,6 +66,11 @@ export class ServicesService {
       },
     };
   }
+
+  async countActiveServices(): Promise<number> {
+    return await this.serviceModel.countDocuments({ isActive: true });
+  }
+
   async getServiceById(id: string): Promise<Service> {
     const service = await this.serviceModel.findById(id);
     if (!service) {
@@ -72,6 +78,7 @@ export class ServicesService {
     }
     return service;
   }
+
   async searchServices(search: string): Promise<Service[]> {
     const service = await this.serviceModel.find({
       name: { $regex: search, $options: 'i' },
@@ -81,6 +88,7 @@ export class ServicesService {
     }
     return service;
   }
+
   async updateService(
     id: string,
     updateServiceDto: UpdateServiceDto,
@@ -95,6 +103,7 @@ export class ServicesService {
     }
     return service;
   }
+
   async deleteService(id: string): Promise<void> {
     const service = await this.serviceModel.findById(id);
     if (!service) {
