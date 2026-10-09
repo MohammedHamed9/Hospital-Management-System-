@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Service } from './service-schema';
@@ -12,6 +13,8 @@ import { GetServicesDto } from './dtos/getServicesDto';
 
 @Injectable()
 export class ServicesService {
+  private readonly logger = new Logger(ServicesService.name);
+
   constructor(
     @InjectModel(Service.name)
     private readonly serviceModel: Model<Service>,
@@ -22,9 +25,13 @@ export class ServicesService {
       name: createServiceDto.name,
     });
     if (oldService) {
+      this.logger.warn(
+        `Service creation conflict — name already exists: "${createServiceDto.name}"`,
+      );
       throw new ConflictException({ message: 'Service already exists' });
     }
     const service = await this.serviceModel.create(createServiceDto);
+    this.logger.log(`Service created: "${service.name}" (id: ${service._id})`);
     return service;
   }
 
@@ -55,6 +62,10 @@ export class ServicesService {
     });
     const hasNextPage = skip + services.length < totalServices;
     const hasPreviousPage = pageInt > 1;
+    this.logger.log(
+      `Retrieved services: page=${pageInt}, limit=${limitInt}, totalServices=${totalServices}`,
+    );
+
     return {
       services,
       pagination: {
@@ -74,8 +85,10 @@ export class ServicesService {
   async getServiceById(id: string): Promise<Service> {
     const service = await this.serviceModel.findById(id);
     if (!service) {
+      this.logger.warn(`Service not found: id=${id}`);
       throw new NotFoundException('Service not found');
     }
+    this.logger.log(`Retrieved service: id=${id}, name="${service.name}"`);
     return service;
   }
 
@@ -84,8 +97,12 @@ export class ServicesService {
       name: { $regex: search, $options: 'i' },
     });
     if (!service) {
+      this.logger.warn(`Service not found: search=${search}`);
       throw new NotFoundException('Service not found');
     }
+    this.logger.log(
+      `Retrieved service: search=${search}, count=${service.length}`,
+    );
     return service;
   }
 
@@ -99,16 +116,20 @@ export class ServicesService {
       { new: true, runValidators: true },
     );
     if (!service) {
+      this.logger.warn(`Service not found for update: id=${id}`);
       throw new NotFoundException('Service not found');
     }
+    this.logger.log(`Service updated: id=${id}, name="${service.name}"`);
     return service;
   }
 
   async deleteService(id: string): Promise<void> {
     const service = await this.serviceModel.findById(id);
     if (!service) {
+      this.logger.warn(`Service not found for deletion: id=${id}`);
       throw new NotFoundException('Service not found');
     }
+    this.logger.log(`Service deleted: id=${id}, name="${service.name}"`);
     service.isActive = false;
     await service.save();
   }

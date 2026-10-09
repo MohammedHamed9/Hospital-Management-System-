@@ -5,6 +5,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -21,6 +22,8 @@ import {
 
 @Injectable()
 export class ServicesBookingService {
+  private readonly logger = new Logger(ServicesBookingService.name);
+
   constructor(
     @InjectModel('ServicesBooking')
     private readonly bookingModel: Model<ServicesBookingDocument>,
@@ -34,12 +37,18 @@ export class ServicesBookingService {
   ): Promise<ServicesBookingDocument> {
     try {
       if (!Types.ObjectId.isValid(createDto.serviceId)) {
+        this.logger.warn(
+          `Invalid serviceId format: serviceId=${createDto.serviceId}`,
+        );
         throw new BadRequestException('Invalid serviceId format');
       }
       const service = await this.servicesService.getServiceById(
         createDto.serviceId,
       );
       if (!service) {
+        this.logger.warn(
+          `Service retrieval failed — service not found: serviceId=${createDto.serviceId}`,
+        );
         throw new NotFoundException('Service not found');
       }
 
@@ -50,9 +59,24 @@ export class ServicesBookingService {
         status: ServicesBookingStatus.PENDING,
       });
 
-      return await newBooking.save();
+      const saved = await newBooking.save();
+      this.logger.log(
+        `Service booking created: bookingId=${saved._id}, userId=${userId}, serviceId=${createDto.serviceId}`,
+      );
+      this.logger.log(
+        `Booking details: ${JSON.stringify({
+          userId: saved.userId,
+          serviceId: saved.serviceId,
+          date: saved.date,
+          status: saved.status,
+        })}`,
+      );
+      return saved;
     } catch (error: any) {
       if (error.code === 11000) {
+        this.logger.warn(
+          `Duplicate booking attempt: userId=${userId}, serviceId=${createDto.serviceId}`,
+        );
         throw new ConflictException(
           'You  already booked this service and its still pending ',
         );
@@ -87,15 +111,21 @@ export class ServicesBookingService {
         .exec(),
       this.bookingModel.countDocuments(filter).exec(),
     ]);
-
+    this.logger.log(
+      `Retrieved bookings: page=${page}, limit=${limit}, total=${total}, filter=${JSON.stringify(
+        filter,
+      )}`,
+    );
     return { data, total, page, limit };
   }
 
   async findUserBookings(userId: string): Promise<ServicesBookingDocument[]> {
     if (!Types.ObjectId.isValid(userId)) {
+      this.logger.warn(`Invalid userId format: userId=${userId}`);
       throw new BadRequestException('Invalid userId format');
     }
 
+    this.logger.log(`Retrieving bookings for userId: ${userId}`);
     return await this.bookingModel
       .find({ userId: new Types.ObjectId(userId) })
       .populate('serviceId')
@@ -109,6 +139,7 @@ export class ServicesBookingService {
     user?: any,
   ): Promise<ServicesBookingDocument> {
     if (!Types.ObjectId.isValid(bookingId)) {
+      this.logger.warn(`Invalid bookingId format: bookingId=${bookingId}`);
       throw new BadRequestException('Invalid bookingId format');
     }
 
@@ -119,6 +150,7 @@ export class ServicesBookingService {
       .exec();
 
     if (!booking) {
+      this.logger.warn(`Services booking not found: bookingId=${bookingId}`);
       throw new NotFoundException('Services booking not found');
     }
 
@@ -127,6 +159,9 @@ export class ServicesBookingService {
         ? (booking.userId as any)._id.toString()
         : booking.userId.toString();
       if (bookingUserId !== user._id.toString() && bookingUserId !== user.id) {
+        this.logger.warn(
+          `Unauthorized access attempt: bookingId=${bookingId}, userId=${user._id}`,
+        );
         throw new ForbiddenException(
           'You are not authorized to view this booking',
         );
@@ -141,21 +176,29 @@ export class ServicesBookingService {
     updateDto: UpdateServicesBookingStatusDto,
   ): Promise<ServicesBookingDocument> {
     if (!Types.ObjectId.isValid(bookingId)) {
+      this.logger.warn(`Invalid bookingId format: bookingId=${bookingId}`);
       throw new BadRequestException('Invalid bookingId format');
     }
 
     const booking = await this.bookingModel.findById(bookingId);
     if (!booking) {
+      this.logger.warn(`Services booking not found: bookingId=${bookingId}`);
       throw new NotFoundException('Services booking not found');
     }
 
     if (booking.status === ServicesBookingStatus.CANCELLED) {
+      this.logger.warn(
+        `Cannot update status of a cancelled booking: bookingId=${bookingId}`,
+      );
       throw new BadRequestException(
         'Cannot update status of a cancelled booking',
       );
     }
 
     if (booking.status === ServicesBookingStatus.COMPLETED) {
+      this.logger.warn(
+        `Cannot update status of a completed booking: bookingId=${bookingId}`,
+      );
       throw new BadRequestException(
         'Cannot update status of a completed booking',
       );
@@ -170,11 +213,13 @@ export class ServicesBookingService {
     userId?: string,
   ): Promise<{ message: string; booking: ServicesBookingDocument }> {
     if (!Types.ObjectId.isValid(bookingId)) {
+      this.logger.warn(`Invalid bookingId format: bookingId=${bookingId}`);
       throw new BadRequestException('Invalid bookingId format');
     }
 
     const booking = await this.bookingModel.findById(bookingId);
     if (!booking) {
+      this.logger.warn(`Services booking not found: bookingId=${bookingId}`);
       throw new NotFoundException('Services booking not found');
     }
 
@@ -183,6 +228,9 @@ export class ServicesBookingService {
         ? (booking.userId as any)._id.toString()
         : booking.userId.toString();
       if (bookingUserId !== userId.toString()) {
+        this.logger.warn(
+          `Unauthorized access attempt: bookingId=${bookingId}, userId=${userId}`,
+        );
         throw new ForbiddenException(
           'You are not authorized to cancel this booking',
         );
@@ -195,7 +243,9 @@ export class ServicesBookingService {
 
     booking.status = ServicesBookingStatus.CANCELLED;
     await booking.save();
-
+    this.logger.log(
+      `Booking cancelled: bookingId=${bookingId}, by user=${userId || 'ADMIN'}`,
+    );
     return {
       message: 'Booking cancelled successfully',
       booking,
@@ -206,6 +256,7 @@ export class ServicesBookingService {
     userId: string,
     session: ClientSession,
   ): Promise<void> {
+    this.logger.log(`Cancelling bookings for userId: ${userId}`);
     await this.bookingModel.updateMany(
       { userId, status: { $ne: ServicesBookingStatus.CANCELLED } },
       { $set: { status: ServicesBookingStatus.CANCELLED } },

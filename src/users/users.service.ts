@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
@@ -24,6 +25,8 @@ import { User, UserDocument, UserRole } from './user-schema';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
@@ -34,7 +37,7 @@ export class UsersService {
     private readonly slotsService: SlotsService,
     @Inject(forwardRef(() => ServicesBookingService))
     private readonly servicesBookingService: ServicesBookingService,
-    @Inject(forwardRef( () => PrescriptionService))
+    @Inject(forwardRef(() => PrescriptionService))
     private readonly prescriptionService: PrescriptionService,
     @Inject(forwardRef(() => ServicesService))
     private readonly servicesService: ServicesService,
@@ -42,11 +45,17 @@ export class UsersService {
 
   async create(signUpCredentials: SignUpCredentials): Promise<UserDocument> {
     try {
-      return await this.userModel.create(signUpCredentials);
+      const user = await this.userModel.create(signUpCredentials);
+      this.logger.log(`New user registered: ${user.email} (id: ${user._id})`);
+      return user;
     } catch (error) {
       if (error.code === 11000) {
+        this.logger.warn(
+          `Registration failed — duplicate email: ${signUpCredentials.email}`,
+        );
         throw new ConflictException('the email address is already exists!');
       }
+      this.logger.error('Unexpected error during user creation', error.stack);
       throw new InternalServerErrorException();
     }
   }
@@ -67,6 +76,10 @@ export class UsersService {
     const user = await this.userModel
       .findOne({ email: email.toLowerCase() })
       .select('+password +passwordResetToken +passwordResetExpires');
+    this.logger.log(
+      `User lookup by email: ${email} — ${user ? 'found' : 'not found'}`,
+    );
+    this.logger.debug(`User details: ${user ? JSON.stringify(user) : 'N/A'}`);
     return user;
   }
 
@@ -77,6 +90,10 @@ export class UsersService {
         passwordResetExpires: { $gt: new Date() },
       })
       .select('+password +passwordResetToken +passwordResetExpires');
+    this.logger.log(
+      `User lookup by reset token: ${hashedToken} — ${user ? 'found' : 'not found'}`,
+    );
+    this.logger.debug(`User details: ${user ? JSON.stringify(user) : 'N/A'}`);
     return user;
   }
 
@@ -85,10 +102,14 @@ export class UsersService {
       role: { $in: getUsersDto.roles },
       isActive: true,
     });
+    this.logger.log(
+      `Retrieved users: roles=${getUsersDto.roles}, count=${Admins.length}`,
+    );
     return Admins;
   }
 
   async findAllUsers(): Promise<UserDocument[]> {
+    this.logger.log(`Retrieving all active users`);
     return await this.userModel
       .find({ isActive: true })
       .select('-password -passwordChangedAt');
@@ -99,8 +120,10 @@ export class UsersService {
       .findById(id)
       .select('-password -passwordChangedAt');
     if (!user) {
+      this.logger.warn(`User not found: userId=${id}`);
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+    this.logger.log(`User found: userId=${id}`);
     return user;
   }
 
@@ -115,8 +138,10 @@ export class UsersService {
         '-password -passwordResetToken -passwordResetExpires -passwordChangedAt',
       );
     if (!user) {
+      this.logger.warn(`User profile not found: userId=${userId}`);
       throw new NotFoundException('User profile not found');
     }
+    this.logger.log(`User profile retrieved: userId=${userId}`);
     return user;
   }
 
@@ -130,17 +155,16 @@ export class UsersService {
         '-password -passwordResetToken -passwordResetExpires -passwordChangedAt',
       );
     if (!user) {
+      this.logger.warn(`User profile not found: userId=${userId}`);
       throw new NotFoundException('User profile not found');
     }
+    this.logger.log(`User profile updated: userId=${userId}`);
     return user;
   }
 
-  /**
-   * Activates a user account (sets isActive = true and deactivatedAt = null).
-   * Note: Passes { includeInactive: true } in query to bypass pre-find active isolation middleware.
-   */
   async activateUser(userId: string): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(userId)) {
+      this.logger.warn(`Invalid user ID format: userId=${userId}`);
       throw new BadRequestException('Invalid user ID format');
     }
 
@@ -150,28 +174,21 @@ export class UsersService {
     } as any);
 
     if (!user) {
+      this.logger.warn(`User not found: userId=${userId}`);
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
     if (user.isActive) {
+      this.logger.warn(`User is already active: userId=${userId}`);
       throw new BadRequestException('User is already active');
     }
 
     user.isActive = true;
     user.deactivatedAt = undefined;
-
+    this.logger.log(`User activated: userId=${userId}`);
     return user.save();
   }
 
-  /**
-   * Aggregates dashboard metrics:
-   * - totalPatients (UserRole.PATIENT)
-   * - totalDoctors (UserRole.DOCTOR)
-   * - todayAppointments (created today)
-   * - pendingAppointments (status PENDING)
-   * - completedAppointments (status COMPLETED)
-   * - activeServices (Services with isActive = true)
-   */
   async getDashboardStats(): Promise<{
     totalPatients: number;
     totalDoctors: number;
@@ -180,18 +197,22 @@ export class UsersService {
     completedAppointments: number;
     activeServices: number;
   }> {
-    const [
-      totalPatients,
-      totalDoctors,
-      appointmentStats,
-      activeServices,
-    ] = await Promise.all([
-      this.userModel.countDocuments({ role: UserRole.PATIENT, isActive: true }),
-      this.userModel.countDocuments({ role: UserRole.DOCTOR, isActive: true }),
-      this.appointmentsService.getAppointmentStats(),
-      this.servicesService.countActiveServices(),
-    ]);
-
+    const [totalPatients, totalDoctors, appointmentStats, activeServices] =
+      await Promise.all([
+        this.userModel.countDocuments({
+          role: UserRole.PATIENT,
+          isActive: true,
+        }),
+        this.userModel.countDocuments({
+          role: UserRole.DOCTOR,
+          isActive: true,
+        }),
+        this.appointmentsService.getAppointmentStats(),
+        this.servicesService.countActiveServices(),
+      ]);
+    this.logger.log(
+      `Dashboard stats retrieved: totalPatients=${totalPatients}, totalDoctors=${totalDoctors}, todayAppointments=${appointmentStats.todayAppointments}, pendingAppointments=${appointmentStats.pendingAppointments}, completedAppointments=${appointmentStats.completedAppointments}, activeServices=${activeServices}`,
+    );
     return {
       totalPatients,
       totalDoctors,
@@ -202,12 +223,6 @@ export class UsersService {
     };
   }
 
-  /**
-   * Aggregates complete medical history for a user combining:
-   * 1. Completed Appointments
-   * 2. Prescriptions
-   * 3. Service Bookings
-   */
   async getMyMedicalHistory(userId: string): Promise<{
     patient: {
       id: string;
@@ -227,6 +242,7 @@ export class UsersService {
     servicesBookings: any[];
   }> {
     if (!Types.ObjectId.isValid(userId)) {
+      this.logger.warn(`Invalid user ID format: userId=${userId}`);
       throw new BadRequestException('Invalid user ID format');
     }
 
@@ -235,16 +251,21 @@ export class UsersService {
       .select('name email phone dateOfBirth gender role isActive');
 
     if (!patient) {
+      this.logger.warn(`Patient profile not found: userId=${userId}`);
       throw new NotFoundException('Patient profile not found');
     }
 
     const [completedAppointments, prescriptions, servicesBookings] =
       await Promise.all([
         this.appointmentsService.getCompletedAppointmentsByPatientId(userId),
-        this.prescriptionService.getPatientPrescriptionsForMedicalRecord(userId),
+        this.prescriptionService.getPatientPrescriptionsForMedicalRecord(
+          userId,
+        ),
         this.servicesBookingService.findUserBookings(userId),
       ]);
-
+      this.logger.log(
+        `Medical history retrieved for userId=${userId}: completedAppointments=${completedAppointments.length}, prescriptions=${prescriptions.length}, servicesBookings=${servicesBookings.length}`,
+      );
     return {
       patient: {
         id: patient._id.toString(),
@@ -283,6 +304,7 @@ export class UsersService {
       );
 
       if (!user) {
+        this.logger.warn(`User account not found: userId=${userId}`);
         throw new NotFoundException('User account not found');
       }
       if (user.role === UserRole.DOCTOR) {
@@ -307,12 +329,16 @@ export class UsersService {
         );
       }
       await session.commitTransaction();
+      this.logger.log(`User account deactivated: userId=${userId}`);
       return {
         message: 'Account successfully deactivated',
         deactivatedAt,
       };
     } catch (error) {
-      console.log(error);
+      this.logger.error(
+        `Failed to deactivate account for user ${userId}`,
+        error.stack,
+      );
       await session.abortTransaction();
       throw error;
     } finally {
@@ -325,12 +351,15 @@ export class UsersService {
       new: true,
     });
     if (!user) {
+      this.logger.warn(`User not found for update: userId=${id}`);
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+    this.logger.log(`User updated: userId=${id}`);
     return user;
   }
 
   async deleteById(id: string): Promise<void> {
+    this.logger.log(`Deactivating user account: userId=${id}`);
     await this.userModel.findByIdAndUpdate(
       id,
       { isActive: false, deactivatedAt: new Date() },
